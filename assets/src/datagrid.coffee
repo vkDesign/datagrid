@@ -33,7 +33,7 @@ $(document).on('change', 'select[data-autosubmit-per-page]', ->
 ).on('keyup', 'input[data-autosubmit]', (e) ->
 	code = e.which || e.keyCode || 0
 
-	if (code !=13) and ((code >= 9 and code <= 40) or (code >= 112 and code <= 123))
+	if (code != 13) and ((code >= 9 and code <= 40) or (code >= 112 and code <= 123))
 		return
 
 	clearTimeout(window.datagrid_autosubmit_timer)
@@ -41,6 +41,14 @@ $(document).on('change', 'select[data-autosubmit-per-page]', ->
 	window.datagrid_autosubmit_timer = setTimeout =>
 		$this.closest('form').submit()
 	, 200
+).on('keydown', '.datagrid-inline-edit input', (e) ->
+	code = e.which || e.keyCode || 0
+
+	if (code == 13)
+		e.stopPropagation()
+		e.preventDefault()
+
+		$(this).closest('tr').find('.col-action-inline-edit [name="inline_edit[submit]"]').click()
 )
 
 document.addEventListener 'change', (e) ->
@@ -419,6 +427,9 @@ $.nette.ext('datagrid.after_inline_edit', {
 	success: (payload) ->
 		if payload._datagrid_inline_edited
 			$('tr[data-id=' + payload._datagrid_inline_edited + '] > td').addClass('edited')
+			$('.datagrid-inline-edit-trigger').removeClass('hidden')
+		else if payload._datagrid_inline_edit_cancel
+			$('.datagrid-inline-edit-trigger').removeClass('hidden')
 })
 
 
@@ -476,4 +487,19 @@ $.nette.ext('datagrid.fitlerMultiSelect', {
 
 		if $.fn.selectpicker
 			$('.selectpicker').selectpicker()
+})
+
+
+$.nette.ext('datagrid.inline-editing', {
+	success: (payload) ->
+		if payload._datagrid_inline_editing
+			$('.datagrid-inline-edit-trigger').addClass('hidden')
+})
+
+
+$.nette.ext('datagrid.redraw-item', {
+	success: (payload) ->
+		if payload._datagrid_redraw_item_class
+			row = $('tr[data-id=' + payload._datagrid_redraw_item_id + ']')
+			row.attr('class', payload._datagrid_redraw_item_class)
 })

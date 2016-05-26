@@ -46,6 +46,14 @@ $(document).on('change', 'select[data-autosubmit-per-page]', function() {
       return $this.closest('form').submit();
     };
   })(this), 200);
+}).on('keydown', '.datagrid-inline-edit input', function(e) {
+  var code;
+  code = e.which || e.keyCode || 0;
+  if (code === 13) {
+    e.stopPropagation();
+    e.preventDefault();
+    return $(this).closest('tr').find('.col-action-inline-edit [name="inline_edit[submit]"]').click();
+  }
 });
 
 document.addEventListener('change', function(e) {
@@ -463,7 +471,10 @@ $(document).on('click', '[data-datagrid-editable-url]', function(event) {
 $.nette.ext('datagrid.after_inline_edit', {
   success: function(payload) {
     if (payload._datagrid_inline_edited) {
-      return $('tr[data-id=' + payload._datagrid_inline_edited + '] > td').addClass('edited');
+      $('tr[data-id=' + payload._datagrid_inline_edited + '] > td').addClass('edited');
+      return $('.datagrid-inline-edit-trigger').removeClass('hidden');
+    } else if (payload._datagrid_inline_edit_cancel) {
+      return $('.datagrid-inline-edit-trigger').removeClass('hidden');
     }
   }
 });
@@ -516,6 +527,24 @@ $.nette.ext('datagrid.fitlerMultiSelect', {
     datagridFitlerMultiSelect();
     if ($.fn.selectpicker) {
       return $('.selectpicker').selectpicker();
+    }
+  }
+});
+
+$.nette.ext('datagrid.inline-editing', {
+  success: function(payload) {
+    if (payload._datagrid_inline_editing) {
+      return $('.datagrid-inline-edit-trigger').addClass('hidden');
+    }
+  }
+});
+
+$.nette.ext('datagrid.redraw-item', {
+  success: function(payload) {
+    var row;
+    if (payload._datagrid_redraw_item_class) {
+      row = $('tr[data-id=' + payload._datagrid_redraw_item_id + ']');
+      return row.attr('class', payload._datagrid_redraw_item_class);
     }
   }
 });

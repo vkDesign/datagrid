@@ -219,6 +219,16 @@ class DataGrid extends Nette\Application\UI\Control
 	protected $tree_view_has_children_column;
 
 	/**
+	 * @var boolean
+	 */
+	protected $tree_dynamic;
+
+	/**
+	 * @var boolean
+	 */
+	protected $tree_nodes_opened = FALSE;
+
+	/**
 	 * @var bool
 	 */
 	protected $outer_filter_rendering = FALSE;
@@ -391,17 +401,37 @@ class DataGrid extends Nette\Application\UI\Control
 		}
 
 		$callback = $this->rowCallback ?: NULL;
+		$hasGroupActionOnRows = FALSE;
 
 		foreach ($items as $item) {
 			$rows[] = $row = new Row($this, $item, $this->getPrimaryKey());
 
+			if (!$hasGroupActionOnRows && $row->hasGroupAction()){
+				$hasGroupActionOnRows = TRUE;
+			}
+			
 			if ($callback) {
 				$callback($item, $row->getControl());
 			}
+
+			/**
+			 * Walkaround for item snippet - snippet is the <tr> element and its class has to be also updated
+			 */
+			if (!empty($this->redraw_item)) {
+				$this->getPresenter()->payload->_datagrid_redraw_item_class = $row->getControlClass();
+				$this->getPresenter()->payload->_datagrid_redraw_item_id = $row->getId();
+			}
+		}
+
+		if ($hasGroupActionOnRows){
+			$hasGroupActionOnRows = $this->hasGroupActions();
 		}
 
 		if ($this->isTreeView()) {
 			$this->getTemplate()->add('tree_view_has_children_column', $this->tree_view_has_children_column);
+			$this->getTemplate()->add('tree_dynamic', $this->tree_dynamic);
+			$this->getTemplate()->add('tree_nodes_opened', $this->tree_nodes_opened);
+			$this->getTemplate()->add('getTreeChildrenRows', $this->getTreeChildrenRows);
 		}
 
 		$this->getTemplate()->add('rows', $rows);
@@ -413,13 +443,16 @@ class DataGrid extends Nette\Application\UI\Control
 
 		$this->getTemplate()->add('filter_active', $this->isFilterActive());
 		$this->getTemplate()->add('original_template', $this->getOriginalTemplateFile());
-		$this->getTemplate()->add('icon_prefix', static::$icon_prefix);
+		//$this->getTemplate()->add('icon_prefix', static::$icon_prefix);
+		$this->getTemplate()->icon_prefix = static::$icon_prefix;
 		$this->getTemplate()->add('items_detail', $this->items_detail);
 		$this->getTemplate()->add('columns_visibility', $this->columns_visibility);
 		$this->getTemplate()->add('columnsSummary', $this->columnsSummary);
 
 		$this->getTemplate()->add('inlineEdit', $this->inlineEdit);
 		$this->getTemplate()->add('inlineAdd', $this->inlineAdd);
+
+		$this->getTemplate()->add('hasGroupActionOnRows', $hasGroupActionOnRows);
 
 		/**
 		 * Walkaround for Latte (does not know $form in snippet in {form} etc)
@@ -638,6 +671,35 @@ class DataGrid extends Nette\Application\UI\Control
 
 
 	/**
+	 * Set all tree nodes to be opened by default. Works only along with non-dynamic tree
+	 * @param boolean $tree_nodes_opened
+	 * @return static
+	 */
+	public function setTreeOpenAllNodes($tree_nodes_opened = TRUE)
+	{
+		if (!$this->isTreeView()) {
+			throw new DataGridException('Please call setTreeview before calling setTreeOpenAllNodes');
+		}
+		if ($this->isTreeDynamic()) {
+			throw new DataGridException('Open all nodes can only be used for non-dynamic trees');
+		}
+		$this->tree_nodes_opened = $tree_nodes_opened;
+
+		return $this;
+	}
+
+
+	/**
+	 * Is open all nodes turned on?
+	 * @return boolean
+	 */
+	public function isTreeOpenAllNodes()
+	{
+		return (bool) $this->tree_nodes_opened;
+	}
+
+
+	/**
 	 * Is tree view set?
 	 * @return boolean
 	 */
@@ -648,12 +710,23 @@ class DataGrid extends Nette\Application\UI\Control
 
 
 	/**
+	 * Is tree view dynamic?
+	 * @return boolean
+	 */
+	public function isTreeDynamic()
+	{
+		return (bool) $this->tree_dynamic;
+	}
+
+
+	/**
 	 * Setting tree view
 	 * @param callable $get_children_callback
 	 * @param string|callable $tree_view_has_children_column
+	 * @param  boolean $tree_dynamic should tree be loaded dynamically?
 	 * @return static
 	 */
-	public function setTreeView($get_children_callback, $tree_view_has_children_column = 'has_children')
+	public function setTreeView($get_children_callback, $tree_view_has_children_column = 'has_children', $tree_dynamic = TRUE)
 	{
 		if (!is_callable($get_children_callback)) {
 			throw new DataGridException(
@@ -666,6 +739,7 @@ class DataGrid extends Nette\Application\UI\Control
 			$tree_view_has_children_column = NULL;
 		}
 
+		$this->tree_dynamic = $tree_dynamic;
 		$this->tree_view_children_callback = $get_children_callback;
 		$this->tree_view_has_children_column = $tree_view_has_children_column;
 
@@ -702,6 +776,21 @@ class DataGrid extends Nette\Application\UI\Control
 	public function treeViewChildrenCallback($item)
 	{
 		return call_user_func($this->tree_view_has_children_callback, $item);
+	}
+
+
+	/**
+	 * Returns array of \Ublaboo\DataGrid\Row for all children of given parent
+	 * @param mixed $parent
+	 * @return array
+	 */
+	public function getTreeChildrenRows($parent)
+	{
+		$rows = [];
+		foreach (call_user_func($this->tree_view_children_callback, $parent) as $item) {
+			$rows[] = new Row($this, $item, $this->primary_key);
+		}
+		return $rows;
 	}
 
 
@@ -1388,9 +1477,6 @@ class DataGrid extends Nette\Application\UI\Control
 			 * Other stuff
 			 */
 			$this->per_page = $values->per_page;
-			$this->reload();
-
-			return;
 		}
 
 		/**
@@ -1408,13 +1494,16 @@ class DataGrid extends Nette\Application\UI\Control
 
 				if ($edit['submit']->isSubmittedBy()) {
 					$this->inlineEdit->onSubmit($id, $values->inline_edit);
-
-					if ($this->getPresenter()->isAjax()) {
-						$this->getPresenter()->payload->_datagrid_inline_edited = $id;
-					}
+					$this->getPresenter()->payload->_datagrid_inline_edited = $id;
+				} else {
+					$this->getPresenter()->payload->_datagrid_inline_edit_cancel = $id;
 				}
 
-				$this->redrawItem($id, $primary_where_column);
+				if ($edit['submit']->isSubmittedBy() && !empty($this->inlineEdit->onCustomRedraw)) {
+					$this->inlineEdit->onCustomRedraw();
+				} else {
+					$this->redrawItem($id, $primary_where_column);
+				}
 
 				return;
 			}
@@ -1856,21 +1945,21 @@ class DataGrid extends Nette\Application\UI\Control
 	 * @param  int $parent
 	 * @return void
 	 */
-	public function handleGetChildren($parent)
+	public function handlegetChildren($parent)
 	{
 		$this->setDataSource(
 			call_user_func($this->tree_view_children_callback, $parent)
 		);
-
 		if ($this->getPresenter()->isAjax()) {
 			$this->getPresenter()->payload->_datagrid_url = $this->refresh_url;
 			$this->getPresenter()->payload->_datagrid_tree = $parent;
 
+			$this->redrawControl('includedTreeRows');
 			$this->redrawControl('items');
 
 			$this->onRedraw();
 		} else {
-			$this->getPresenter()->redirect('this');
+			//$this->getPresenter()->redirect('this');
 		}
 	}
 
@@ -1970,6 +2059,7 @@ class DataGrid extends Nette\Application\UI\Control
 		$this->redraw_item = [($primary_where_column ?: $this->primary_key) => $id];
 
 		$this->redrawControl('items');
+
 		$this->getPresenter()->payload->_datagrid_url = $this->refresh_url;
 
 		$this->onRedraw();
@@ -2456,6 +2546,16 @@ class DataGrid extends Nette\Application\UI\Control
 
 
 	/**
+	 * @param  callable $condition
+	 * @return void
+	 */
+	public function allowRowsInlineEdit(callable $condition)
+	{
+		$this->row_conditions['inline_edit'] = $condition;
+	}
+
+
+	/**
 	 * @param  string   $key
 	 * @param  callable $condition
 	 * @return void
@@ -2551,6 +2651,10 @@ class DataGrid extends Nette\Application\UI\Control
 
 			$this['filter']['inline_edit']->addHidden('_id', $id);
 			$this['filter']['inline_edit']->addHidden('_primary_where_column', $primary_where_column);
+
+			if ($this->getPresenter()->isAjax()) {
+				$this->getPresenter()->payload->_datagrid_inline_editing = TRUE;
+			}
 
 			$this->redrawItem($id, $primary_where_column);
 		}
