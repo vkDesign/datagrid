@@ -1467,17 +1467,8 @@ class DataGrid extends Nette\Application\UI\Control
 		/**
 		 * Per page
 		 */
-		if (isset($form['per_page_submit']) && $form['per_page_submit']->isSubmittedBy()) {
-			/**
-			 * Session stuff
-			 */
-			$this->saveSessionData('_grid_per_page', $values->per_page);
-
-			/**
-			 * Other stuff
-			 */
-			$this->per_page = $values->per_page;
-		}
+		$this->saveSessionData('_grid_per_page', $values->per_page);
+		$this->per_page = $values->per_page;
 
 		/**
 		 * Inline edit
