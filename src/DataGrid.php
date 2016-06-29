@@ -463,7 +463,7 @@ class DataGrid extends Nette\Application\UI\Control
 			$this->getTemplate()->add('tree_view_has_children_column', $this->tree_view_has_children_column);
 			$this->getTemplate()->add('tree_dynamic', $this->tree_dynamic);
 			$this->getTemplate()->add('tree_nodes_opened', $this->tree_nodes_opened);
-			$this->getTemplate()->add('getTreeChildrenRows', $this->getTreeChildrenRows);
+			$this->getTemplate()->add('getTreeChildrenRows', [$this, 'getTreeChildrenRows']);
 		}
 
 		$this->getTemplate()->add('rows', $rows);
