@@ -1,6 +1,6 @@
 var datagridFitlerMultiSelect, datagridSortable, datagridSortableTree;
 
-$(document).on('click', '[data-datagrid-confirm]', function(e) {
+$(document).on('click', '[data-datagrid-confirm]:not(.ajax)', function(e) {
   if (!confirm($(e.target).closest('a').attr('data-datagrid-confirm'))) {
     e.stopPropagation();
     return e.preventDefault();
@@ -122,9 +122,14 @@ window.datagridSerializeUrl = function(obj, prefix) {
 		if (obj.hasOwnProperty(p)) {
 			var k = prefix ? prefix + "[" + p + "]" : p, v = obj[p];
 			if (v !== null && v !== "") {
-				str.push(typeof v == "object" ?
-					window.datagridSerializeUrl(v, k) :
-					encodeURIComponent(k) + "=" + encodeURIComponent(v));
+				if (typeof v == "object") {
+					var r = window.datagridSerializeUrl(v, k);
+						if (r) {
+							str.push(r);
+						}
+				} else {
+					str.push(encodeURIComponent(k) + "=" + encodeURIComponent(v));
+				}
 			}
 		}
 	}
@@ -141,7 +146,7 @@ datagridSortable = function() {
     items: 'tr',
     axis: 'y',
     update: function(event, ui) {
-      var item_id, next_id, prev_id, row, url;
+      var component_prefix, data, item_id, next_id, prev_id, row, url;
       row = ui.item.closest('tr[data-id]');
       item_id = row.data('id');
       prev_id = null;
@@ -153,14 +158,16 @@ datagridSortable = function() {
         next_id = row.next().data('id');
       }
       url = $(this).data('sortable-url');
+      data = {};
+      component_prefix = row.closest('.datagrid').find('tbody').attr('data-sortable-parent-path');
+      data[(component_prefix + '-item_id').replace(/^-/, '')] = item_id;
+      data[(component_prefix + '-prev_id').replace(/^-/, '')] = prev_id;
+      data[(component_prefix + '-next_id').replace(/^-/, '')] = next_id;
+      console.log(data);
       return $.nette.ajax({
         type: 'GET',
         url: url,
-        data: {
-          item_id: item_id,
-          prev_id: prev_id,
-          next_id: next_id
-        },
+        data: data,
         error: function(jqXHR, textStatus, errorThrown) {
           return alert(jqXHR.statusText);
         }
@@ -186,11 +193,11 @@ if (typeof datagridSortableTree === 'undefined') {
     }
     return $('.datagrid-tree-item-children').sortable({
       handle: '.handle-sort',
-      items: '.datagrid-tree-item',
+      items: '.datagrid-tree-item:not(.datagrid-tree-item:first-child)',
       toleranceElement: '> .datagrid-tree-item-content',
       connectWith: '.datagrid-tree-item-children',
       update: function(event, ui) {
-        var item_id, next_id, parent, parent_id, prev_id, row, url;
+        var component_prefix, data, item_id, next_id, parent, parent_id, prev_id, row, url;
         $('.toggle-tree-to-delete').remove();
         row = ui.item.closest('.datagrid-tree-item[data-id]');
         item_id = row.data('id');
@@ -216,15 +223,16 @@ if (typeof datagridSortableTree === 'undefined') {
           return;
         }
         parent.find('[data-toggle-tree]').first().removeClass('hidden');
+        component_prefix = row.closest('.datagrid-tree').attr('data-sortable-parent-path');
+        data = {};
+        data[(component_prefix + '-item_id').replace(/^-/, '')] = item_id;
+        data[(component_prefix + '-prev_id').replace(/^-/, '')] = prev_id;
+        data[(component_prefix + '-next_id').replace(/^-/, '')] = next_id;
+        data[(component_prefix + '-parent_id').replace(/^-/, '')] = parent_id;
         return $.nette.ajax({
           type: 'GET',
           url: url,
-          data: {
-            item_id: item_id,
-            prev_id: prev_id,
-            next_id: next_id,
-            parent_id: parent_id
-          },
+          data: data,
           error: function(jqXHR, textStatus, errorThrown) {
             if (errorThrown !== 'abort') {
               return alert(jqXHR.statusText);
@@ -354,7 +362,7 @@ $.nette.ext('datargid.item_detail', {
       id = settings.nette.el.attr('data-toggle-detail');
       row_detail = $('.item-detail-' + id);
       if (row_detail.hasClass('loaded')) {
-        if (!row_detail.find('.item-detail-content').length) {
+        if (!row_detail.find('.item-detail-content').size()) {
           row_detail.removeClass('toggled');
           return true;
         }
@@ -402,7 +410,7 @@ $.nette.ext('datagrid.tree', {
     var children_block, content, id, name, ref, snippet, template;
     if (payload._datagrid_tree) {
       id = payload._datagrid_tree;
-      children_block = $('.datagrid-tree-item[data-id=' + id + ']').find('.datagrid-tree-item-children').first();
+      children_block = $('.datagrid-tree-item[data-id="' + id + '"]').find('.datagrid-tree-item-children').first();
       children_block.addClass('loaded');
       ref = payload.snippets;
       for (name in ref) {
@@ -485,6 +493,12 @@ $(document).on('click', '[data-datagrid-editable-url]', function(event) {
           return submit(cell, $(this));
         }
       }
+      if (e.which === 27) {
+        e.stopPropagation();
+        e.preventDefault();
+        cell.removeClass('editing');
+        return cell.html(cell.data('value'));
+      }
     });
     return cell.find('select').on('change', function() {
       return submit(cell, $(this));
@@ -494,11 +508,13 @@ $(document).on('click', '[data-datagrid-editable-url]', function(event) {
 
 $.nette.ext('datagrid.after_inline_edit', {
   success: function(payload) {
+    var grid;
+    grid = $('.datagrid-' + payload._datagrid_name);
     if (payload._datagrid_inline_edited) {
-      $('tr[data-id=' + payload._datagrid_inline_edited + '] > td').addClass('edited');
-      return $('.datagrid-inline-edit-trigger').removeClass('hidden');
+      grid.find('tr[data-id=' + payload._datagrid_inline_edited + '] > td').addClass('edited');
+      return grid.find('.datagrid-inline-edit-trigger').removeClass('hidden');
     } else if (payload._datagrid_inline_edit_cancel) {
-      return $('.datagrid-inline-edit-trigger').removeClass('hidden');
+      return grid.find('.datagrid-inline-edit-trigger').removeClass('hidden');
     }
   }
 });
@@ -569,6 +585,32 @@ $.nette.ext('datagrid.redraw-item', {
     if (payload._datagrid_redraw_item_class) {
       row = $('tr[data-id=' + payload._datagrid_redraw_item_id + ']');
       return row.attr('class', payload._datagrid_redraw_item_class);
+    }
+  }
+});
+
+$.nette.ext('datagrid.reset-filter-by-column', {
+  success: function(payload) {
+    var grid, href, i, key, len, ref;
+    if (!payload._datagrid_name) {
+      return;
+    }
+    grid = $('.datagrid-' + payload._datagrid_name);
+    grid.find('[data-datagrid-reset-filter-by-column]').addClass('hidden');
+    if (payload.non_empty_filters && payload.non_empty_filters.length) {
+      ref = payload.non_empty_filters;
+      for (i = 0, len = ref.length; i < len; i++) {
+        key = ref[i];
+        grid.find('[data-datagrid-reset-filter-by-column=' + key + ']').removeClass('hidden');
+      }
+      href = grid.find('.reset-filter').attr('href');
+      return grid.find('[data-datagrid-reset-filter-by-column]').each(function() {
+        var new_href;
+        key = $(this).attr('data-datagrid-reset-filter-by-column');
+        new_href = href.replace('do=examplesGrid-resetFilter', 'do=' + payload._datagrid_name + '-resetColumnFilter');
+        new_href += '&' + payload._datagrid_name + '-key=' + key;
+        return $(this).attr('href', new_href);
+      });
     }
   }
 });

@@ -1,6 +1,6 @@
 # Non-ajax confirmation
 #
-$(document).on('click', '[data-datagrid-confirm]', (e) ->
+$(document).on('click', '[data-datagrid-confirm]:not(.ajax)', (e) ->
 	if not confirm($(e.target).closest('a').attr('data-datagrid-confirm'))
 		e.stopPropagation()
 		e.preventDefault()
@@ -116,9 +116,14 @@ window.datagridSerializeUrl = function(obj, prefix) {
 		if (obj.hasOwnProperty(p)) {
 			var k = prefix ? prefix + "[" + p + "]" : p, v = obj[p];
 			if (v !== null && v !== "") {
-				str.push(typeof v == "object" ?
-					window.datagridSerializeUrl(v, k) :
-					encodeURIComponent(k) + "=" + encodeURIComponent(v));
+				if (typeof v == "object") {
+					var r = window.datagridSerializeUrl(v, k);
+						if (r) {
+							str.push(r);
+						}
+				} else {
+					str.push(encodeURIComponent(k) + "=" + encodeURIComponent(v));
+				}
 			}
 		}
 	}
@@ -149,10 +154,19 @@ datagridSortable = ->
 
 			url = $(this).data('sortable-url')
 
+			data = {};
+			component_prefix = row.closest('.datagrid').find('tbody').attr('data-sortable-parent-path')
+
+			data[(component_prefix + '-item_id').replace(/^-/, '')] = item_id
+			data[(component_prefix + '-prev_id').replace(/^-/, '')] = prev_id
+			data[(component_prefix + '-next_id').replace(/^-/, '')] = next_id
+
+			console.log(data)
+
 			$.nette.ajax({
 				type: 'GET',
 				url: url,
-				data: {item_id: item_id, prev_id: prev_id, next_id: next_id},
+				data: data,
 				error: (jqXHR, textStatus, errorThrown) ->
 					alert(jqXHR.statusText)
 			})
@@ -174,7 +188,7 @@ if typeof datagridSortableTree == 'undefined'
 
 		$('.datagrid-tree-item-children').sortable({
 			handle: '.handle-sort',
-			items: '.datagrid-tree-item',
+			items: '.datagrid-tree-item:not(.datagrid-tree-item:first-child)',
 			toleranceElement: '> .datagrid-tree-item-content',
 			connectWith: '.datagrid-tree-item-children',
 			update: (event, ui) ->
@@ -208,10 +222,18 @@ if typeof datagridSortableTree == 'undefined'
 
 				parent.find('[data-toggle-tree]').first().removeClass('hidden')
 
+				component_prefix = row.closest('.datagrid-tree').attr('data-sortable-parent-path')
+				data = {}
+
+				data[(component_prefix + '-item_id').replace(/^-/, '')] = item_id
+				data[(component_prefix + '-prev_id').replace(/^-/, '')] = prev_id
+				data[(component_prefix + '-next_id').replace(/^-/, '')] = next_id
+				data[(component_prefix + '-parent_id').replace(/^-/, '')] = parent_id
+
 				$.nette.ajax({
 					type: 'GET',
 					url: url,
-					data: {item_id: item_id, prev_id: prev_id, next_id: next_id, parent_id: parent_id},
+					data: data,
 					error: (jqXHR, textStatus, errorThrown) ->
 						if errorThrown != 'abort'
 							alert(jqXHR.statusText)
@@ -351,7 +373,7 @@ $.nette.ext('datagrid.tree', {
 	success: (payload) ->
 		if payload._datagrid_tree
 			id = payload._datagrid_tree
-			children_block = $('.datagrid-tree-item[data-id=' + id + ']').find('.datagrid-tree-item-children').first()
+			children_block = $('.datagrid-tree-item[data-id="' + id + '"]').find('.datagrid-tree-item-children').first()
 			children_block.addClass('loaded')
 
 			for name, snippet of payload.snippets
@@ -438,7 +460,14 @@ $(document).on('click', '[data-datagrid-editable-url]', (event) ->
 					e.stopPropagation()
 					e.preventDefault()
 
-					submit(cell, $(this))
+					return submit(cell, $(this))
+
+			if e.which == 27
+				e.stopPropagation()
+				e.preventDefault()
+
+				cell.removeClass('editing');
+				cell.html(cell.data('value'));
 		)
 		cell.find('select').on('change', ->
 			submit(cell, $(this))
@@ -449,11 +478,13 @@ $(document).on('click', '[data-datagrid-editable-url]', (event) ->
 #
 $.nette.ext('datagrid.after_inline_edit', {
 	success: (payload) ->
+		grid = $('.datagrid-' + payload._datagrid_name)
+
 		if payload._datagrid_inline_edited
-			$('tr[data-id=' + payload._datagrid_inline_edited + '] > td').addClass('edited')
-			$('.datagrid-inline-edit-trigger').removeClass('hidden')
+			grid.find('tr[data-id=' + payload._datagrid_inline_edited + '] > td').addClass('edited')
+			grid.find('.datagrid-inline-edit-trigger').removeClass('hidden')
 		else if payload._datagrid_inline_edit_cancel
-			$('.datagrid-inline-edit-trigger').removeClass('hidden')
+			grid.find('.datagrid-inline-edit-trigger').removeClass('hidden')
 })
 
 
@@ -526,4 +557,32 @@ $.nette.ext('datagrid.redraw-item', {
 		if payload._datagrid_redraw_item_class
 			row = $('tr[data-id=' + payload._datagrid_redraw_item_id + ']')
 			row.attr('class', payload._datagrid_redraw_item_class)
+})
+
+
+$.nette.ext('datagrid.reset-filter-by-column', {
+	success: (payload) ->
+		if !payload._datagrid_name
+			return
+
+		grid = $('.datagrid-' + payload._datagrid_name)
+
+		# Show/hide reset-fitler indecators
+		#
+		grid.find('[data-datagrid-reset-filter-by-column]').addClass('hidden')
+
+		if payload.non_empty_filters && payload.non_empty_filters.length
+			for key in payload.non_empty_filters
+				grid.find('[data-datagrid-reset-filter-by-column='+key+']').removeClass('hidden')
+
+			# Refresh their url (table header is not refreshed using snippets)
+			#
+			href = grid.find('.reset-filter').attr('href')
+
+			grid.find('[data-datagrid-reset-filter-by-column]').each ->
+				key = $(this).attr('data-datagrid-reset-filter-by-column')
+
+				new_href = href.replace('do=examplesGrid-resetFilter', 'do=' + payload._datagrid_name + '-resetColumnFilter')
+				new_href += '&' + payload._datagrid_name + '-key=' + key
+				$(this).attr('href', new_href)
 })

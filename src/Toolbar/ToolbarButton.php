@@ -34,6 +34,12 @@ class ToolbarButton
 	protected $params;
 
 	/**
+	 * @var array
+	 */
+	protected $attributes = [];
+
+
+	/**
 	 * @param DataGrid $grid
 	 * @param string   $href
 	 * @param string   $text
@@ -60,7 +66,11 @@ class ToolbarButton
 
 		$this->tryAddIcon($a, $this->getIcon(), $this->getText());
 
-		$a->addText($this->text);
+		if (!empty($this->attributes)) {
+			$a->addAttributes($this->attributes);
+		}
+
+		$a->addText($this->grid->getTranslator()->translate($this->text));
 
 		if ($this->title) {
 			$a->title($this->grid->getTranslator()->translate($this->title));
@@ -71,6 +81,18 @@ class ToolbarButton
 		}
 
 		return $a;
+	}
+
+
+	/**
+	 * @param array $attrs
+	 * @return static
+	 */
+	public function addAttributes(array $attrs)
+	{
+		$this->attributes = $this->attributes + $attrs;
+
+		return $this;
 	}
 
 }

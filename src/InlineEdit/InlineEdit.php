@@ -72,6 +72,12 @@ class InlineEdit extends Nette\Object
 	 */
 	protected $position_top = FALSE;
 
+	/**
+	 * Columns that are not edited can displey normal value instaad of nothing..
+	 * @var bool
+	 */
+	protected $showNonEditingColumns = TRUE;
+
 
 	/**
 	 * @param DataGrid $grid
@@ -152,7 +158,7 @@ class InlineEdit extends Nette\Object
 
 		$a->addText($this->text);
 
-		if ($this->title) { $a->title($this->title); }
+		if ($this->title) { $a->title($this->grid->getTranslator()->translate($this->title)); }
 		if ($this->class) { $a->class($this->class); }
 
 		return $a;
@@ -217,6 +223,24 @@ class InlineEdit extends Nette\Object
 					break;
 			}
 		}
+	}
+
+
+	/**
+	 * @param bool $show
+	 */
+	public function setShowNonEditingColumns($show = TRUE)
+	{
+		$this->showNonEditingColumns = (bool) $show;
+	}
+
+
+	/**
+	 * @return bool
+	 */
+	public function showNonEditingColumns()
+	{
+		return $this->showNonEditingColumns;
 	}
 
 }
