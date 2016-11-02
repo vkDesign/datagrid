@@ -86,7 +86,7 @@
 									{foreach $exports as $export}{$export->render()}{/foreach}
 								</span>
 
-								<div class="datagrid-settings" n:block="settings" n:if="$control->canHideColumns() || $inlineAdd">
+								<div class="datagrid-settings" n:block="settings" n:if="$control->canHideColumns() || $inlineAdd" style = 'float: right;'>
 									{**
 									 * Inline add
 									 *}
@@ -175,11 +175,11 @@
 										</ul>
 									</div>
 
-									{if $control->hasColumnReset()}
+									{*if $control->hasColumnReset()}
 										<a data-datagrid-reset-filter-by-column="{$key}" n:href="resetColumnFilter!, key => $key" n:class="isset($filters[$key]) && $filters[$key]->isValueSet() ? '' : 'hidden', 'ajax'" title="{_'ublaboo_datagrid.reset_filter'}">
 											<i n:block="icon-remove" class="{$icon_prefix}remove"></i>
 										</a>
-									{/if}
+									{/if*}
 								</div>
 							{$th->endTag()|noescape}
 						{/foreach}
