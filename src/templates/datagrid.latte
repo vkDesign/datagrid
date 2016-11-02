@@ -14,7 +14,11 @@
  * @param InlineEdit|null $inlineAdd   Inline add data
  *}
 
-<div class="datagrid datagrid-{$control->getName()} table-responsive" data-refresh-state="{link refreshState!}">
+<<<<<<< HEAD
+<div class="datagrid datagrid-{$control->getName()} table-responsive">
+=======
+<div class="datagrid datagrid-{$control->getName()}" data-refresh-state="{link refreshState!}">
+>>>>>>> upstream/master
 	{**
 	 * Own data
 	 *}
@@ -25,6 +29,7 @@
 			 * Filter form
 			 *}
 			{if $control->hasOuterFilterRendering()}
+				{block outer-filters}
 				<div class="row row-filters">
 					{foreach $filters as $f}
 						{**
@@ -53,13 +58,8 @@
 				{if !$control->hasAutoSubmit()}
 					<div class="text-right datagrid-manual-submit">
 						{input $filter['filter']['submit']}
-
 					</div>
-					{if !$control->hasAutoSubmit()}
-						<div class="text-right datagrid-manual-submit">
-							{input $filter['filter']['submit']}
-						</div>
-					{/if}
+				{/if}
 				{/block}
 			{/if}
 			<table class="{block table-class}table table-hover table-striped table-bordered{/block}" n:snippet="table" n:block="data">
