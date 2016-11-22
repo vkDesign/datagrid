@@ -14,7 +14,7 @@
  * @param InlineEdit|null $inlineAdd   Inline add data
  *}
 
-<div class="datagrid datagrid-{$control->getName()}" data-refresh-state="{link refreshState!}">
+<div class="datagrid datagrid-{$control->getName()} table-responsive" data-refresh-state="{link refreshState!}">
 	{**
 	 * Own data
 	 *}
@@ -26,24 +26,13 @@
 			 *}
 			{if $control->hasOuterFilterRendering()}
 				{block outer-filters}
-					<div class="row text-right datagrid-collapse-filters-button-row" n:if="$control->hasCollapsibleOuterFilters()">
-						<div class="col-sm-12">
-							<button class="btn btn-xs btn-primary active" type="button" data-toggle="collapse" data-target="#datagrid-row-filters">
-								<i n:block = "icon-filter" class="{$icon_prefix}filter"></i> {_'ublaboo_datagrid.show_filter'}
-							</button>
-						</div>
-					</div>
-
-					{if $control->hasCollapsibleOuterFilters() && !$filter_active}
-						{var $filter_row_class = 'row row-filters collapse'}
-					{elseif $filter_active}
-						{var $filter_row_class = 'row row-filters collapse in'}
-					{else}
-						{var $filter_row_class = 'row row-filters'}
-					{/if}
-					<div class="{$filter_row_class}" id="datagrid-row-filters">
-						{var $i = 0}
-						<div class="col-sm-6" n:foreach="$filters as $f">
+				<div class="row row-filters">
+					{foreach $filters as $f}
+						{**
+						 * Do not display the filter if the column is hidden
+						 *}
+						{continueIf !array_key_exists($f->getKey(), $columns)}
+						<div class="col-sm-6">
 							{**
 							 * Each fitler is rendered separately in its own template
 							 *}
@@ -59,14 +48,14 @@
 										{include $f->getTemplate(), filter => $f, input => $form['filter'][$f->getKey()], outer => TRUE}
 								{/ifset}
 							{/ifset}
-							{var $i = $i+1}
 						</div>
+					{/foreach}
+				</div>
+				{if !$control->hasAutoSubmit()}
+					<div class="text-right datagrid-manual-submit">
+						{input $filter['filter']['submit']}
 					</div>
-					{if !$control->hasAutoSubmit()}
-						<div class="text-right datagrid-manual-submit">
-							{input $filter['filter']['submit']}
-						</div>
-					{/if}
+				{/if}
 				{/block}
 			{/if}
 			<table class="{block table-class}table table-hover table-striped table-bordered{/block}" n:snippet="table" n:block="data">
@@ -97,7 +86,7 @@
 									{foreach $exports as $export}{$export->render()}{/foreach}
 								</span>
 
-								<div class="datagrid-settings" n:block="settings" n:if="$control->canHideColumns() || $inlineAdd">
+								<div class="datagrid-settings" n:block="settings" n:if="$control->canHideColumns() || $inlineAdd" style = 'float: right;'>
 									{**
 									 * Inline add
 									 *}
@@ -186,11 +175,11 @@
 										</ul>
 									</div>
 
-									{if $control->hasColumnReset()}
+									{*if $control->hasColumnReset()}
 										<a data-datagrid-reset-filter-by-column="{$key}" n:href="resetColumnFilter!, key => $key" n:class="isset($filters[$key]) && $filters[$key]->isValueSet() ? '' : 'hidden', 'ajax'" title="{_'ublaboo_datagrid.reset_filter'}">
 											<i n:block="icon-remove" class="{$icon_prefix}remove"></i>
 										</a>
-									{/if}
+									{/if*}
 								</div>
 							{$th->endTag()|noescape}
 						{/foreach}

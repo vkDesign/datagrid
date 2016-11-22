@@ -138,16 +138,15 @@ final class DataModel extends Nette\Object
 		 */
 		if ($paginator_component) {
 			$paginator = $paginator_component->getPaginator();
-			$paginator->setItemCount($this->data_source->getCount());
 
 			$this->data_source->sort($sorting)->limit(
 				$paginator->getOffset(),
 				$paginator->getItemsPerPage()
 			);
 
-			$this->onAfterPaginated($this->data_source);
-
-			return $this->data_source->getData();
+			$data = $this->data_source->getData();
+			$paginator->setItemCount($this->data_source->getCount());
+			return $data;
 		}
 
 		return $this->data_source->sort($sorting)->getData();
